@@ -1,0 +1,55 @@
+# Build artifacts
+build/
+dist/
+lib/
+*.so
+*.dylib
+*.dll
+*.a
+*.o
+*.egg-info/
+.eggs/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.cmake
+!CMakeLists.txt
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+ENV/
+.venv
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test artifacts
+.pytest_cache/
+.coverage
+htmlcov/
+*.log
+
+# Compiled binaries
+screen_analysis_cpp*.so
+screen_analysis_cpp*.pyd
+
+# Poetry
+poetry.lock
+
+# Temporary files
+*.tmp
+*.bak
