@@ -1,0 +1,12 @@
+{
+    "python-envs.defaultEnvManager": "ms-python.python:poetry",
+    "python-envs.defaultPackageManager": "ms-python.python:poetry",
+    "python-envs.pythonProjects": [],
+    "python.analysis.extraPaths": [
+        "build/libs/"
+    ],
+    "python.autoComplete.extraPaths": [
+        "build/libs"
+    ],
+    "cmake.sourceDirectory": "/home/franklin/Documents/Aimbot/cpp"
+}
