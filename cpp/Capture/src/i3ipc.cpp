@@ -1,9 +1,11 @@
 #include "i3ipc.hpp"
+#include <nlohmann/json.hpp>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
 #include <iostream>
 #include <vector>
+#include <cstring>
 
 namespace Capture {
 
@@ -83,32 +85,34 @@ std::string I3Scanner::receiveResponse() {
     return json_data;
 }
 
-// Helper function to search the recursive i3 tree
+// Updated helper function for nlohmann::json
 void find_node_recursive(const nlohmann::json& node, const std::string& name, WindowInfo& info) {
-    // Check if this node is our window
-    // i3 nodes usually have "name" (title) or "window_properties" -> "class"
+    // 1. Check if this node is the window we want
     if (node.contains("name") && node["name"].is_string()) {
         if (node["name"].get<std::string>().find(name) != std::string::npos) {
+            // Check if it's an actual window (not just a container)
             if (node.contains("window") && !node["window"].is_null()) {
                 info.xid = node["window"].get<uint64_t>();
-                info.x = node["rect"]["x"];
-                info.y = node["rect"]["y"];
-                info.w = node["rect"]["width"];
-                info.h = node["rect"]["height"];
+                info.x = node["rect"]["x"].get<int>();
+                info.y = node["rect"]["y"].get<int>();
+                info.w = node["rect"]["width"].get<int>();
+                info.h = node["rect"]["height"].get<int>();
                 info.found = true;
                 return;
             }
         }
     }
 
-    // Recurse into children
-    if (node.contains("nodes")) {
+    // 2. Recurse into normal nodes
+    if (node.contains("nodes") && node["nodes"].is_array()) {
         for (const auto& child : node["nodes"]) {
             find_node_recursive(child, name, info);
             if (info.found) return;
         }
     }
-    if (node.contains("floating_nodes")) {
+    
+    // 3. Recurse into floating nodes (important for some apps)
+    if (node.contains("floating_nodes") && node["floating_nodes"].is_array()) {
         for (const auto& child : node["floating_nodes"]) {
             find_node_recursive(child, name, info);
             if (info.found) return;
@@ -125,10 +129,11 @@ WindowInfo I3Scanner::scanForWindow(const std::string& name) {
     if (json_str.empty()) return info;
 
     try {
+        // Simple one-line parsing with nlohmann
         auto tree = nlohmann::json::parse(json_str);
         find_node_recursive(tree, name, info);
-    } catch (...) {
-        // Handle parse errors
+    } catch (const std::exception& e) {
+        std::cerr << "JSON Parse error: " << e.what() << std::endl;
     }
 
     return info;

@@ -2,11 +2,18 @@ import os
 import sys
 import subprocess
 import hashlib
-import shutil
 from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-
+from pybind11_stubgen import (
+    CLIArgs,
+    arg_parser,
+    stub_parser_from_args,
+    to_output_and_subdir,
+    run as stubgen_run,
+)
+from pybind11_stubgen.printer import Printer
+from pybind11_stubgen.writer import Writer
 
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = ""):
@@ -53,21 +60,64 @@ class CMakeBuild(build_ext):
             init_py.write_text(f"from .imgbuffer import *\n")
 
         self.save_build_hash(ext)
-        self.generate_stubs(extdir, ext.name)
+        self.test_stubgen(extdir, ext.name)
 
     def generate_stubs(self, output_dir: Path, module_name: str):
         try:
             print(f"Generating stubs for {module_name}...")
+
             env = os.environ.copy()
-            env["PYTHONPATH"] = (
-                str(Path("src").resolve()) + os.pathsep + env.get("PYTHONPATH", "")
-            )
+            # Crucial: Put the src root first so the freshly built modules are found
+            env["PYTHONPATH"] = str(output_dir) + os.pathsep + env.get("PYTHONPATH", "")
+
+            # We run stubgen on the module.
+            # If capture depends on imgbuffer, stubgen will now find
+            # imgbuffer because it's in the PYTHONPATH we just set.
             subprocess.check_call(
-                [sys.executable, "-m", "pybind11_stubgen", module_name, "-o", "src"],
+                [
+                    sys.executable,
+                    "-m",
+                    "pybind11_stubgen",
+                    module_name,
+                    "--no-setup-py",
+                    "--ignore-invalid-expressions",
+                    "-o",
+                    str(output_dir),
+                ],
                 env=env,
             )
-        except Exception as e:
-            print(f"Note: Install 'pybind11-stubgen' for IntelliSense.")
+        except Exception:
+            print(
+                "Note: Stub generation failed. Make sure 'pybind11-stubgen' is installed."
+            )
+
+    def test_stubgen(self, output_dir: Path, module_name: str):
+        argv = [
+            module_name,
+            "-o", str(output_dir),
+            "--no-setup-py",
+            "--ignore-invalid-expressions"
+        ]
+        args = arg_parser().parse_args(argv, namespace=CLIArgs())
+
+        parser = stub_parser_from_args(args)
+        printer = Printer(invalid_expr_as_ellipses=False)
+
+        out_dir, sub_dir = to_output_and_subdir(
+            output_dir=args.output_dir,
+            module_name=args.module_name,
+            root_suffix=args.root_suffix,
+        )
+
+        stubgen_run(
+            parser,
+            printer,
+            args.module_name,
+            out_dir,
+            sub_dir=sub_dir,
+            dry_run=args.dry_run,
+            writer=Writer(stub_ext=args.stub_extension),
+        )
 
     def needs_rebuild(self, ext: CMakeExtension) -> bool:
         ext_path = Path(self.get_ext_fullpath(ext.name))
@@ -95,10 +145,9 @@ if __name__ == "__main__":
     setup(
         name="aimbot-workspace",
         version="0.1.1",
-        packages=["aimbot", "imgbuffer"],
+        packages=["aimbot", "imgbuffer", "capture"],
         package_dir={"": "src"},
-        # Changed name to "imgbuffer.imgbuffer" to put the .so inside the imgbuffer folder
-        ext_modules=[CMakeExtension("imgbuffer.imgbuffer", sourcedir="cpp")],
+        ext_modules=[CMakeExtension("capture.capture", sourcedir="cpp")],
         cmdclass={"build_ext": CMakeBuild},
         zip_safe=False,
     )

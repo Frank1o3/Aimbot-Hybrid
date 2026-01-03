@@ -11,6 +11,10 @@ public:
     XWaylandBackend();
     ~XWaylandBackend();
 
+    // ADD THIS LINE:
+    bool init(uint64_t xid, int w, int h) override;
+    
+    // Ensure these match the interface as well
     uint64_t findWindow(const std::string& name) override;
     bool capture(IMGBuffer::Buffer& outBuffer) override;
 
@@ -21,8 +25,6 @@ private:
     XShmSegmentInfo m_shmInfo;
     bool m_shmAttached = false;
 
-    // The i3ipc socket connection logic
-    int connectToI3(); 
     void cleanup();
 };
 

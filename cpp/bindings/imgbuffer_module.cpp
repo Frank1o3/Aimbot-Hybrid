@@ -1,11 +1,8 @@
 #include <pybind11/pybind11.h>
-
 namespace py = pybind11;
+void bind_imgbuffer(py::module_& m);
 
-void bind_imgbuffer(py::module_&);
-
+// Internal name must match build.py extension name
 PYBIND11_MODULE(imgbuffer, m) {
-    m.doc() = "High-performance image buffer backend";
-
     bind_imgbuffer(m);
 }
