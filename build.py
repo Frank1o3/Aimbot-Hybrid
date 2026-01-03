@@ -5,15 +5,6 @@ import hashlib
 from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
-from pybind11_stubgen import (
-    CLIArgs,
-    arg_parser,
-    stub_parser_from_args,
-    to_output_and_subdir,
-    run as stubgen_run,
-)
-from pybind11_stubgen.printer import Printer
-from pybind11_stubgen.writer import Writer
 
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = ""):
@@ -56,68 +47,56 @@ class CMakeBuild(build_ext):
 
         # Create an __init__.py in the extension dir so it's a valid package
         init_py = extdir / "__init__.py"
-        if not init_py.exists():
-            init_py.write_text(f"from .imgbuffer import *\n")
+        init_py.touch(exist_ok=True)
 
         self.save_build_hash(ext)
-        self.test_stubgen(extdir, ext.name)
+        self.generate_stubs(extdir, ext.name)
 
-    def generate_stubs(self, output_dir: Path, module_name: str):
-        try:
-            print(f"Generating stubs for {module_name}...")
+    def generate_stubs(self, output_dir: Path, ext_name: str):
+        """
+        Generate stubs for all compiled extension modules in output_dir.
+        """
+        print(f"Generating stubs in {output_dir}...")
 
-            env = os.environ.copy()
-            # Crucial: Put the src root first so the freshly built modules are found
-            env["PYTHONPATH"] = str(output_dir) + os.pathsep + env.get("PYTHONPATH", "")
+        env = os.environ.copy()
 
-            # We run stubgen on the module.
-            # If capture depends on imgbuffer, stubgen will now find
-            # imgbuffer because it's in the PYTHONPATH we just set.
-            subprocess.check_call(
-                [
-                    sys.executable,
-                    "-m",
-                    "pybind11_stubgen",
-                    module_name,
-                    "--no-setup-py",
-                    "--ignore-invalid-expressions",
-                    "-o",
-                    str(output_dir),
-                ],
-                env=env,
-            )
-        except Exception:
-            print(
-                "Note: Stub generation failed. Make sure 'pybind11-stubgen' is installed."
-            )
+        # Ensure package root is importable
+        src_root = output_dir.parent
+        env["PYTHONPATH"] = str(src_root) + os.pathsep + env.get("PYTHONPATH", "")
 
-    def test_stubgen(self, output_dir: Path, module_name: str):
-        argv = [
-            module_name,
-            "-o", str(output_dir),
-            "--no-setup-py",
-            "--ignore-invalid-expressions"
-        ]
-        args = arg_parser().parse_args(argv, namespace=CLIArgs())
+        package = output_dir.name  # e.g. "capture"
 
-        parser = stub_parser_from_args(args)
-        printer = Printer(invalid_expr_as_ellipses=False)
+        # Extension suffixes to look for
+        suffixes = {".so", ".pyd", ".dll"}
 
-        out_dir, sub_dir = to_output_and_subdir(
-            output_dir=args.output_dir,
-            module_name=args.module_name,
-            root_suffix=args.root_suffix,
-        )
+        for file in output_dir.iterdir():
+            if not file.is_file():
+                continue
 
-        stubgen_run(
-            parser,
-            printer,
-            args.module_name,
-            out_dir,
-            sub_dir=sub_dir,
-            dry_run=args.dry_run,
-            writer=Writer(stub_ext=args.stub_extension),
-        )
+            if file.suffix not in suffixes:
+                continue
+
+            # Remove ABI suffix: capture.cpython-313-x86_64-linux-gnu.so → capture
+            module_base = file.name.split(".", 1)[0]
+
+            full_module_name = f"{package}.{module_base}"
+
+            try:
+                print(f"  → stubgen {full_module_name}")
+                subprocess.check_call(
+                    [
+                        sys.executable,
+                        "-m",
+                        "pybind11_stubgen",
+                        full_module_name,
+                        "-o",
+                        "src",
+                    ],
+                    env=env,
+                )
+            except subprocess.CalledProcessError as e:
+                print(f"⚠ Failed to generate stubs for {full_module_name}: {e}")
+
 
     def needs_rebuild(self, ext: CMakeExtension) -> bool:
         ext_path = Path(self.get_ext_fullpath(ext.name))
