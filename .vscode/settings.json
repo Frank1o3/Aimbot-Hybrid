@@ -10,5 +10,5 @@
     ],
     "cmake.sourceDirectory": "/home/franklin/Documents/Aimbot/cpp",
     "git.autofetch": "all",
-    "git.autofetchPeriod": 15
+    "git.autofetchPeriod": 30
 }
