@@ -8,5 +8,7 @@
     "python.autoComplete.extraPaths": [
         "build/libs"
     ],
-    "cmake.sourceDirectory": "/home/franklin/Documents/Aimbot/cpp"
+    "cmake.sourceDirectory": "/home/franklin/Documents/Aimbot/cpp",
+    "git.autofetch": "all",
+    "git.autofetchPeriod": 15
 }
