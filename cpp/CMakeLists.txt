@@ -32,4 +32,5 @@ endif()
 # Subprojects
 # --------------------
 add_subdirectory(IMGBuffer)
+add_subdirectory(Capture)
 add_subdirectory(bindings)
