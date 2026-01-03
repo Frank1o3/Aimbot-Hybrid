@@ -1,12 +1,8 @@
-"""
-Smart setup.py that auto-builds C++ extensions when files change.
-Works on Linux and Windows.
-"""
-
 import os
 import sys
 import subprocess
 import hashlib
+import shutil
 from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
@@ -14,127 +10,95 @@ from setuptools.command.build_ext import build_ext
 
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = ""):
-        Extension.__init__(self, name, sources=[])
+        super().__init__(name, sources=[])
         self.sourcedir = os.path.abspath(sourcedir)
 
 
 class CMakeBuild(build_ext):
-    """Custom build command that uses CMake"""
-
     def run(self):
-        # Check if CMake is installed
-        try:
-            subprocess.check_output(["cmake", "--version"])
-        except OSError:
-            raise RuntimeError("CMake must be installed to build extensions")
-
         for ext in self.extensions:
             self.build_extension(ext)
 
-    def build_extension(self, ext: "CMakeExtension"):
-        extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
+    def build_extension(self, ext: CMakeExtension):
+        # Target: root/src/imgbuffer/
+        # We use ext.name here. If name is "imgbuffer", it goes to src/imgbuffer
+        ext_fullpath = Path(self.get_ext_fullpath(ext.name)).resolve()
+        extdir = ext_fullpath.parent
+        extdir.mkdir(parents=True, exist_ok=True)
 
-        # Detect if we need to rebuild
         if not self.needs_rebuild(ext):
-            print(f"✓ {ext.name} is up to date, skipping build")
+            print(f"✓ {ext.name} is up to date")
             return
 
         print(f"Building {ext.name}...")
+        cfg = "Debug" if self.debug else "Release"
+        build_temp = Path(self.build_temp)
+        build_temp.mkdir(parents=True, exist_ok=True)
 
-        # CMake config
         cmake_args = [
             f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}",
+            f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}",
             f"-DPYTHON_EXECUTABLE={sys.executable}",
+            f"-DCMAKE_BUILD_TYPE={cfg}",
         ]
 
-        # Build type
-        cfg = "Debug" if self.debug else "Release"
-        build_args = ["--config", cfg]
-
-        # Platform-specific settings
-        if sys.platform.startswith("win"):
-            # Windows
-            cmake_args += [
-                f"-DCMAKE_LIBRARY_OUTPUT_DIRECTORY_{cfg.upper()}={extdir}",
-            ]
-            if sys.maxsize > 2**32:
-                cmake_args += ["-A", "x64"]
-            build_args += ["--", "/m"]
-        else:
-            # Linux/Mac
-            cmake_args += [f"-DCMAKE_BUILD_TYPE={cfg}"]
-            import multiprocessing
-
-            build_args += ["--", f"-j{multiprocessing.cpu_count()}"]
-
-        # Build directory
-        if not os.path.exists(self.build_temp):
-            os.makedirs(self.build_temp)
-
-        # Run CMake
+        subprocess.check_call(["cmake", ext.sourcedir] + cmake_args, cwd=build_temp)
         subprocess.check_call(
-            ["cmake", ext.sourcedir] + cmake_args, cwd=self.build_temp
+            ["cmake", "--build", "."] + ["--config", cfg], cwd=build_temp
         )
 
-        subprocess.check_call(
-            ["cmake", "--build", "."] + build_args, cwd=self.build_temp
-        )
+        # Create an __init__.py in the extension dir so it's a valid package
+        init_py = extdir / "__init__.py"
+        if not init_py.exists():
+            init_py.write_text(f"from .imgbuffer import *\n")
 
-        # Save build hash
         self.save_build_hash(ext)
-        print(f"✓ {ext.name} built successfully")
+        self.generate_stubs(extdir, ext.name)
 
-    def needs_rebuild(self, ext: "CMakeExtension") -> bool:
-        """Check if C++ sources have changed since last build"""
-        cpp_dir = Path(ext.sourcedir)
+    def generate_stubs(self, output_dir: Path, module_name: str):
+        try:
+            print(f"Generating stubs for {module_name}...")
+            env = os.environ.copy()
+            env["PYTHONPATH"] = (
+                str(Path("src").resolve()) + os.pathsep + env.get("PYTHONPATH", "")
+            )
+            subprocess.check_call(
+                [sys.executable, "-m", "pybind11_stubgen", module_name, "-o", "src"],
+                env=env,
+            )
+        except Exception as e:
+            print(f"Note: Install 'pybind11-stubgen' for IntelliSense.")
 
-        # If no built library exists, rebuild
+    def needs_rebuild(self, ext: CMakeExtension) -> bool:
         ext_path = Path(self.get_ext_fullpath(ext.name))
         if not ext_path.exists():
             return True
-
-        # Calculate hash of all C++ files
-        current_hash = self.calculate_cpp_hash(cpp_dir)
-
-        # Compare with saved hash
+        current_hash = self.calculate_cpp_hash(Path(ext.sourcedir))
         hash_file = Path(self.build_temp) / ".cpp_hash"
-        if not hash_file.exists():
-            return True
+        return not hash_file.exists() or hash_file.read_text().strip() != current_hash
 
-        saved_hash = hash_file.read_text().strip()
-        return current_hash != saved_hash
-
-    def calculate_cpp_hash(self, cpp_dir: Path):
-        """Calculate MD5 hash of all C++ source files"""
+    def calculate_cpp_hash(self, cpp_dir: Path) -> str:
         hasher = hashlib.md5()
-
-        # Include all .cpp, .hpp, .h files
-        for pattern in ["**/*.cpp", "**/*.hpp", "**/*.h"]:
-            for filepath in sorted(cpp_dir.glob(pattern)):
-                if filepath.is_file():
-                    hasher.update(filepath.read_bytes())
-
-        # Also include CMakeLists.txt
-        for cmake_file in cpp_dir.glob("**/CMakeLists.txt"):
-            hasher.update(cmake_file.read_bytes())
-
+        for pattern in ("**/*.cpp", "**/*.hpp", "**/*.h", "**/CMakeLists.txt"):
+            for path in sorted(cpp_dir.glob(pattern)):
+                if path.is_file() and "_deps" not in path.parts:
+                    hasher.update(path.read_bytes())
         return hasher.hexdigest()
 
-    def save_build_hash(self, ext: "CMakeExtension"):
-        """Save hash of C++ files after successful build"""
-        cpp_dir = Path(ext.sourcedir)
-        current_hash = self.calculate_cpp_hash(cpp_dir)
-
+    def save_build_hash(self, ext: CMakeExtension):
         hash_file = Path(self.build_temp) / ".cpp_hash"
         hash_file.parent.mkdir(parents=True, exist_ok=True)
-        hash_file.write_text(current_hash)
+        hash_file.write_text(self.calculate_cpp_hash(Path(ext.sourcedir)))
 
 
 if __name__ == "__main__":
     setup(
-        name="aimbot",
-        version="0.1.0",
-        ext_modules=[CMakeExtension("xwayland_capture", sourcedir="cpp")],
+        name="aimbot-workspace",
+        version="0.1.1",
+        packages=["aimbot", "imgbuffer"],
+        package_dir={"": "src"},
+        # Changed name to "imgbuffer.imgbuffer" to put the .so inside the imgbuffer folder
+        ext_modules=[CMakeExtension("imgbuffer.imgbuffer", sourcedir="cpp")],
         cmdclass={"build_ext": CMakeBuild},
-        zip_safe=False
+        zip_safe=False,
     )

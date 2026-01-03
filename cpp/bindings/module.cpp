@@ -2,9 +2,10 @@
 
 namespace py = pybind11;
 
-void bind_capture(py::module_&);
+void bind_imgbuffer(py::module_&);
 
-PYBIND11_MODULE(xwayland_capture, m) {
-    m.doc() = "XWayland capture backend";
-    bind_capture(m);
+PYBIND11_MODULE(imgbuffer, m) {
+    m.doc() = "High-performance image buffer backend";
+
+    bind_imgbuffer(m);
 }

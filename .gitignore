@@ -53,3 +53,5 @@ poetry.lock
 # Temporary files
 *.tmp
 *.bak
+imgbuffer/
+capture/
