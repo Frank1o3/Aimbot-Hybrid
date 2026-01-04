@@ -15,7 +15,7 @@
                 "--compile-commands-dir=build"
             ],
             "compileCommands": [
-                "${workspaceFolder}/build/temp.linux-x86_64-cpython-313/compile_commands.json"
+                "${workspaceFolder}/build/*/compile_commands.json"
             ]
         }
     ],
