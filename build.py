@@ -124,9 +124,9 @@ if __name__ == "__main__":
     setup(
         name="aimbot-workspace",
         version="0.1.1",
-        packages=["aimbot", "imgbuffer", "capture"],
+        packages=["aimbot", "imgbuffer"],
         package_dir={"": "src"},
-        ext_modules=[CMakeExtension("capture.capture", sourcedir="cpp")],
+        ext_modules=[CMakeExtension("imgbuffer.imgbuffer", sourcedir="cpp")],
         cmdclass={"build_ext": CMakeBuild},
         zip_safe=False,
     )
