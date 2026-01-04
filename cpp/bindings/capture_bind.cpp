@@ -10,9 +10,8 @@ void bind_capture(py::module_ &m) {
         Specifies which capture backend to use.
     )doc")
         .value("Auto", Capture::BackendType::Auto, "Automatically detect the best backend")
-        .value("XWayland", Capture::BackendType::XWayland, "Use X11 with Wayland compositor")
+        .value("XWayland", Capture::BackendType::XWayland, "Use X11 (works with both pure X11 and XWayland)")
         .value("Wayland", Capture::BackendType::Wayland, "Use native Wayland")
-        .value("X11", Capture::BackendType::X11, "Use pure X11")
         .export_values();
 
     // CaptureManager class

@@ -1,5 +1,8 @@
 #pragma once
 #include "ICaptureBackend.hpp"
+
+#ifdef X11_BACKEND_ENABLED
+
 #include <X11/Xlib.h>
 #include <X11/extensions/XShm.h>
 #include <sys/shm.h>
@@ -35,3 +38,5 @@ private:
 };
 
 } // namespace Capture
+
+#endif

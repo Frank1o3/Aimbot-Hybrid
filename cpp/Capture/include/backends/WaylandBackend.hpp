@@ -58,3 +58,5 @@ private:
 };
 
 } // namespace Capture
+
+#endif // WAYLAND_BACKEND_ENABLED

@@ -1,6 +1,10 @@
 #include "CaptureManager.hpp"
 #include "backends/XWaylandBackend.hpp"
+
+#ifdef WAYLAND_BACKEND_ENABLED
 #include "backends/WaylandBackend.hpp"
+#endif
+
 #include <iostream>
 #include <cstdlib>
 
@@ -18,7 +22,12 @@ BackendType CaptureManager::detectBackend(const WindowInfo& windowInfo) {
     // If it doesn't have an X11 ID (xid == 0), it's a native Wayland window
     if (windowInfo.xid != 0) {
         std::cout << "Window has X11 ID - using XWayland/X11 backend" << std::endl;
+        #ifdef X11_BACKEND_ENABLED
         return BackendType::XWayland;
+        #else
+        std::cerr << "X11 backend not available but window has X11 ID!" << std::endl;
+        return BackendType::Auto; // Will fail later
+        #endif
     }
     
     // Native Wayland window
@@ -28,7 +37,7 @@ BackendType CaptureManager::detectBackend(const WindowInfo& windowInfo) {
         return BackendType::Wayland;
         #else
         std::cerr << "Wayland backend not compiled! Cannot capture native Wayland windows." << std::endl;
-        std::cerr << "Rebuild with WAYLAND_BACKEND_ENABLED defined." << std::endl;
+        std::cerr << "Rebuild with libwayland-dev installed." << std::endl;
         return BackendType::Auto; // Will fail later
         #endif
     }
@@ -39,7 +48,11 @@ BackendType CaptureManager::detectBackend(const WindowInfo& windowInfo) {
     
     if (x11Display) {
         std::cout << "DISPLAY set - defaulting to XWayland/X11 backend" << std::endl;
+        #ifdef X11_BACKEND_ENABLED
         return BackendType::XWayland;
+        #else
+        std::cerr << "X11 backend not available" << std::endl;
+        #endif
     }
     
     if (waylandDisplay) {
@@ -48,20 +61,36 @@ BackendType CaptureManager::detectBackend(const WindowInfo& windowInfo) {
         return BackendType::Wayland;
         #else
         std::cerr << "Wayland backend not available" << std::endl;
+        #ifdef X11_BACKEND_ENABLED
         return BackendType::XWayland; // Fallback
+        #endif
         #endif
     }
     
-    // Ultimate fallback
+    // Ultimate fallback - prefer X11 if available
+    #ifdef X11_BACKEND_ENABLED
     std::cout << "Could not detect environment - defaulting to XWayland/X11" << std::endl;
     return BackendType::XWayland;
+    #elif defined(WAYLAND_BACKEND_ENABLED)
+    std::cout << "Could not detect environment - defaulting to Wayland" << std::endl;
+    return BackendType::Wayland;
+    #else
+    std::cerr << "No backends available!" << std::endl;
+    return BackendType::Auto; // Will fail
+    #endif
 }
 
 std::unique_ptr<ICaptureBackend> CaptureManager::createBackend(BackendType type) {
     switch (type) {
         case BackendType::XWayland:
+            #ifdef X11_BACKEND_ENABLED
             std::cout << "Creating XWayland/X11 backend" << std::endl;
             return std::make_unique<XWaylandBackend>();
+            #else
+            std::cerr << "X11 backend not compiled!" << std::endl;
+            std::cerr << "Install libx11-dev and libxext-dev, then rebuild" << std::endl;
+            return nullptr;
+            #endif
         
         case BackendType::Wayland:
             #ifdef WAYLAND_BACKEND_ENABLED
@@ -69,14 +98,25 @@ std::unique_ptr<ICaptureBackend> CaptureManager::createBackend(BackendType type)
             return std::make_unique<WaylandBackend>();
             #else
             std::cerr << "Wayland backend not compiled!" << std::endl;
+            std::cerr << "Install libwayland-dev, then rebuild" << std::endl;
+            #ifdef X11_BACKEND_ENABLED
             std::cerr << "Falling back to XWayland/X11 backend" << std::endl;
             return std::make_unique<XWaylandBackend>();
+            #else
+            return nullptr;
+            #endif
             #endif
         
         case BackendType::Auto:
             // This shouldn't happen as Auto should be resolved in init
             std::cerr << "Auto backend should have been resolved!" << std::endl;
+            #ifdef X11_BACKEND_ENABLED
             return std::make_unique<XWaylandBackend>();
+            #elif defined(WAYLAND_BACKEND_ENABLED)
+            return std::make_unique<WaylandBackend>();
+            #else
+            return nullptr;
+            #endif
         
         default:
             return nullptr;

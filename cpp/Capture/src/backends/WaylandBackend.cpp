@@ -1,3 +1,4 @@
+// backends/WaylandBackend.cpp
 #include "backends/WaylandBackend.hpp"
 
 #ifdef WAYLAND_BACKEND_ENABLED
@@ -9,6 +10,14 @@
 #include <sys/mman.h>
 #include <sys/syscall.h>
 #include <errno.h>
+
+#ifndef MFD_CLOEXEC
+#define MFD_CLOEXEC 0x0001U
+#endif
+
+#ifndef MFD_ALLOW_SEALING
+#define MFD_ALLOW_SEALING 0x0002U
+#endif
 
 namespace Capture {
 
@@ -220,8 +229,9 @@ bool WaylandBackend::capture(IMGBuffer::Buffer& outBuffer) {
 }
 
 uint64_t WaylandBackend::findWindow(const std::string& name) {
-    // Native Wayland doesn't expose window IDs
-    // i3ipc will handle window discovery for Sway
+    // Window discovery is handled by i3ipc for all backends
+    // Sway uses the same IPC protocol as i3
+    // This function is kept for interface compatibility
     return 0;
 }
 
