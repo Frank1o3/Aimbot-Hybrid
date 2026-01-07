@@ -6,6 +6,7 @@ from pathlib import Path
 from setuptools import setup, Extension
 from setuptools.command.build_ext import build_ext
 
+
 class CMakeExtension(Extension):
     def __init__(self, name: str, sourcedir: str = ""):
         super().__init__(name, sources=[])
@@ -62,6 +63,7 @@ class CMakeBuild(build_ext):
 
         # Ensure package root is importable
         src_root = output_dir.parent
+        root_dir = Path(__file__).parent.resolve()
         env["PYTHONPATH"] = str(src_root) + os.pathsep + env.get("PYTHONPATH", "")
 
         package = output_dir.name  # e.g. "capture"
@@ -90,13 +92,12 @@ class CMakeBuild(build_ext):
                         "pybind11_stubgen",
                         full_module_name,
                         "-o",
-                        "src",
+                        str(root_dir / "src"),
                     ],
                     env=env,
                 )
             except subprocess.CalledProcessError as e:
                 print(f"⚠ Failed to generate stubs for {full_module_name}: {e}")
-
 
     def needs_rebuild(self, ext: CMakeExtension) -> bool:
         ext_path = Path(self.get_ext_fullpath(ext.name))
@@ -121,12 +122,15 @@ class CMakeBuild(build_ext):
 
 
 if __name__ == "__main__":
+    # build.py
     setup(
         name="aimbot-workspace",
         version="0.1.1",
-        packages=["aimbot", "imgbuffer", "capture"],
+        packages=["imgbuffer", "capture"],
         package_dir={"": "src"},
-        ext_modules=[CMakeExtension("capture.capture", sourcedir="cpp")],
+        ext_modules=[
+            # Just one entry; CMake handles the rest
+            CMakeExtension("aimbot_core_cpp", sourcedir="cpp")
+        ],
         cmdclass={"build_ext": CMakeBuild},
-        zip_safe=False,
     )

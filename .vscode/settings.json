@@ -8,8 +8,7 @@
     "python.autoComplete.extraPaths": [
         "build/libs"
     ],
-    "cmake.sourceDirectory": "/home/frank/Documents/Aimbot-Hybrid/cpp",
+    "cmake.sourceDirectory": "/home/franklin/Documents/Aimbot/cpp",
     "git.autofetch": "all",
-    "git.autofetchPeriod": 30,
-    "python.REPL.enableREPLSmartSend": false
+    "git.autofetchPeriod": 30
 }

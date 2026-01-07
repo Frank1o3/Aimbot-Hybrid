@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.15)
-project(imgbuffer_python LANGUAGES CXX)
+project(imgbuffer_python LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -31,6 +31,6 @@ endif()
 # --------------------
 # Subprojects
 # --------------------
-add_subdirectory(IMGBuffer)
-add_subdirectory(Capture)
+add_subdirectory(imgbuffer)
+add_subdirectory(capture)
 add_subdirectory(bindings)

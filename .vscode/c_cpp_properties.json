@@ -13,6 +13,11 @@
             "compilerPath": "/usr/bin/gcc",
             "compilerArgs": [
                 "--compile-commands-dir=build"
+            ],
+            "compileCommands": [
+                "${workspaceFolder}/build/temp.*/compile_commands.json",
+                "${workspaceFolder}/build/temp.*-*/compile_commands.json",
+                "${workspaceFolder}/build/temp.*/*compile_commands.json"
             ]
         }
     ],
